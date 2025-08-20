@@ -1,39 +1,67 @@
 import math
 
-def small_primes_up_to(limit):
-    """Yield primes up to `limit` using a segmented sieve (safe for large limit)."""
-    if limit < 2:
-        return []
-    limit = int(limit)
-    # we only sieve up to sqrt(limit)
-    root = int(math.isqrt(limit)) + 1
-    sieve = [True] * (root + 1)
+def small_primes_up_to(n, limit=10000):
+    """
+    Generate up to `limit` primes, ignoring n if it's huge.
+    Prevents OverflowError and memory exhaustion.
+    """
+    # hard cap on sieve size
+    max_bound = 2000000  # enough for first ~148k primes
+    bound = min(n, max_bound)
+
+    sieve = [True] * (bound + 1)
     sieve[0:2] = [False, False]
-    for p in range(2, root+1):
+    primes = []
+
+    for p in range(2, bound + 1):
         if sieve[p]:
-            yield p
-            step = p
-            start = p*p
-            sieve[start: root+1: step] = [False] * (((root - start)//step)+1)
-    # after sqrt(limit), just yield odd numbers checked by trial division
-    def is_prime(n):
-        r = int(math.isqrt(n))
-        for p in range(2, r+1):
-            if n % p == 0:
-                return False
-        return True
-    for n in range(root+1, limit+1):
-        if is_prime(n):
-            yield n
+            primes.append(p)
+            if len(primes) >= limit:
+                break
+            step_start = p * p
+            if step_start > bound:
+                continue
+            for m in range(step_start, bound + 1, p):
+                sieve[m] = False
+    return primes
 
 def tonelli_shanks(n, p):
-    """Tonelli-Shanks sqrt mod prime p. Returns r s.t. r^2 ≡ n mod p, or None."""
-    assert 0 <= n < p
+    """
+    Tonelli–Shanks: solve r^2 ≡ n (mod p) for odd prime p.
+    Returns one root r in [0, p-1], or None if no solution.
+    """
+    n %= p
     if n == 0:
         return 0
-    if pow(n, (p-1)//2, p) != 1:
+    if p == 2:
+        return n
+    if pow(n, (p - 1) // 2, p) != 1:
         return None
-    if p % 4 == 3:
-        return pow(n, (p+1)//4, p)
-    # general Tonelli–Shanks omitted (rarely needed in toy demo)
-    return None
+
+    q = p - 1
+    s = 0
+    while q % 2 == 0:
+        q //= 2
+        s += 1
+
+    z = 2
+    while pow(z, (p - 1) // 2, p) != p - 1:
+        z += 1
+
+    m = s
+    c = pow(z, q, p)
+    t = pow(n, q, p)
+    r = pow(n, (q + 1) // 2, p)
+
+    while t != 1:
+        i = 1
+        t2i = pow(t, 2, p)
+        while i < m and t2i != 1:
+            t2i = pow(t2i, 2, p)
+            i += 1
+        b = pow(c, 1 << (m - i - 1), p)
+        r = (r * b) % p
+        t = (t * pow(b, 2, p)) % p
+        c = pow(b, 2, p)
+        m = i
+    return r
