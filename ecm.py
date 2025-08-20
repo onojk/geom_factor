@@ -116,7 +116,7 @@ def ecm(n: int, B1: int = 50000, curves: int = 200, seed: int | None = None):
     if n % 3 == 0:
         return 3
     if seed is None:
-        seed = 0xECM
+        seed = 0xEC11
     rng = random.Random(seed)
     M = _build_M(max(1000, int(B1)))  # ensure reasonable lower bound
 
