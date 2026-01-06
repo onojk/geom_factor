@@ -1,164 +1,126 @@
-# Geometric + Algorithmic Factorization Toolkit
+# geom_factor
 
-⚠️ **Disclaimer**: Educational / research exploration only. Not suitable for real cryptographic attacks.
+Structural experiments on primes, geometry, and factor constraints.
 
----
+This repository explores a single guiding idea:
 
-## Overview
+> **Primality is not a property that emerges from growth, volume, or accumulation.**
+> It is a structural constraint that must be preserved at every step of a computation.
 
-This repository contains experimental code exploring whether **geometric embeddings and calculus-based signatures** can reveal structure in the distribution of prime numbers, and whether such structure could aid factorization or prime detection.
-
-The core idea investigated here is:
-
-> *If primes trace a structured geometric object, can local or multi-step geometric fingerprints distinguish primes from non-primes?*
-
-To test this honestly, the project implements a sequence of increasingly strong geometric invariants and compares **true prime data** against carefully designed **control data**.
+The code here treats primes as *invariants* and tests what kinds of mathematical or geometric constructions can — and cannot — produce them.
 
 ---
 
-## What This Project Does
+## Core Principle
 
-The toolkit provides:
+A number is prime if and only if it has **exactly two positive divisors**: 1 and itself.
 
-* A smooth **3D conical–helical embedding** of the integers
-* Local **calculus-based signatures** at each step:
+From this follows a strict rule that drives this project:
 
-  * Tangent direction
-  * Relative chord angles (Δφ, Δψ)
-  * Curvature and Frenet frame alignment
-* **Planar surface-area band models** derived from prime gaps
-* **Multi-step trajectory analysis** in signature space
-* Direct comparison against:
+> **No computation intended to yield a prime may multiply more than two non-unit factors at any stage, unless the multiplication is immediately canceled.**
 
-  * Random even-gap controls
-  * Shuffled prime-gap controls (same gap distribution, destroyed ordering)
-
-All experiments are designed to be:
-
-* falsifiable
-* reproducible
-* negative-result tolerant
+Once three or more independent factors greater than 1 exist simultaneously, compositeness is locked in and cannot be undone by later steps.
 
 ---
 
-## Summary of Experimental Findings
+## What This Repository Demonstrates
 
-### 1. Single-Step Geometry
+### 1. Prime Volume Impossibility
 
-Local geometric quantities such as:
+Geometric volume formulas (e.g. length × width × height) necessarily multiply three independent quantities. If all dimensions exceed 1, the resulting volume is always composite.
 
-* tangent slope
-* azimuth / elevation differences (Δφ, Δψ)
-* curvature-normal alignment
+This is not a numerical accident — it is a structural consequence of multiplication.
 
-**do exhibit strong structure**:
+### 2. Immediate Cancellation Is the Only Escape
 
-* banding
-* hard geometric boundaries
-* forbidden regions
+Expressions such as:
 
-However, these structures are **shared by primes and non-primes alike**.
+```
+(a * b * c) / c
+```
 
-**Conclusion:**
+are allowed **only because** the extra factor is canceled *immediately*. Delayed cancellation or partial cancellation is insufficient.
 
-> Local geometric invariants define an *admissible phase space*, but do **not** uniquely identify primes.
+### 3. Geometry Cannot Detect Primality
 
----
+Processes based on:
 
-### 2. Curvature and Frenet-Frame Signatures
+* filling space
+* increasing height
+* accumulating volume
+* iterating time steps
 
-Adding higher-order calculus information (Frenet normal, curvature alignment κ) confirms:
-
-* curvature is a real geometric constraint
-* but it is **not a prime discriminator**
-
-Primes do **not** preferentially align with curvature in a way composites cannot.
+cannot certify primality. They create factors; primes forbid them.
 
 ---
 
-### 3. Multi-Step Trajectory Fingerprints
+## Included Drivers
 
-To test whether **sequence memory** matters, the project analyzes the *trajectory* of primes in signature space:
+### `prime_volume_driver.py`
 
-* Treating successive (Δφ, Δψ) points as a curve
-* Measuring **turning angles** between successive steps
-* Comparing against:
+Demonstrates that no rectangular prism with prime integer sides (>1) can have a prime integer volume.
 
-  * shuffled prime gaps (same gaps, different order)
-  * random even-gap controls
+### `prime_mult_rule_driver.py`
 
-**Result:**
+A structural analyzer that parses arithmetic expressions and flags any multiplication that violates the "no 3+ non-unit factors" rule unless immediately canceled.
 
-* Turning-angle distributions are nearly identical
-* Shuffled gaps behave almost the same as true primes
-* No exclusive “prime-only” regions emerge
+### `cone_fill_volume_driver.py`
 
-**Conclusion:**
+Extends the volume argument to conical and tapered geometries, showing that scaling and rational factors do not rescue primality.
 
-> Even multi-step local geometric trajectories do **not** encode primality.
+### Other Drivers
+
+Additional files explore lattice geometry, phase structure, triangle constructions, and factor fingerprints under similar constraints.
 
 ---
 
-## Core Conclusion
+## What This Is *Not*
 
-> **Geometry defines the stage; arithmetic writes the script.**
+* This is not a prime-finding algorithm
+* This is not a numeric sieve
+* This is not probabilistic
 
-The experiments demonstrate that:
-
-* Geometric embeddings impose strong constraints
-* Primes trace structured paths within those constraints
-* But **which path is taken is governed by global arithmetic**, not local or finite-depth geometry
-
-No finite combination of smooth geometric or calculus-based invariants—single-step or multi-step—was found to uniquely characterize primes.
-
-This aligns with deep results in number theory regarding the local pseudorandomness of primes.
+Instead, it is a **structural proof environment**: if a construction violates the invariant, it cannot produce a prime — regardless of numeric size.
 
 ---
 
-## What This Toolkit Is Useful For
+## Usage Example
 
-Although geometry alone does not select primes, this project **is still valuable** as:
+```bash
+python3 prime_volume_driver.py fill --p 3 --q 5 --max-h 500
+```
 
-* A research framework for falsifying geometric prime hypotheses
-* A visualization tool for prime-gap structure
-* A platform for hybrid experiments combining geometry + arithmetic
-* An educational exploration of why local methods fail
+Output:
 
-The code is intentionally modular so future work can explore:
-
-* nonlocal accumulation effects
-* modular arithmetic overlays
-* geometric visualizations of classical sieves
-* factorization heuristics informed by structure (not prediction)
+```
+No prime volumes found for any integer height in the scanned range.
+Reason: base area > 1 forces compositeness.
+```
 
 ---
 
-## Repository Structure
+## Conceptual Summary
 
-* `coil3d.py` — 3D integer embedding, derivatives, Frenet frame
-* `signature_driver.py` — local angle signatures
-* `prime_band.py` — planar surface-area / band models
-* `fingerprint_driver.py` — single-step geometric fingerprint tests
-* `multistep_driver.py` — trajectory / turning-angle analysis
+* Multiplication creates divisors
+* Primes forbid excess divisors
+* Therefore primes cannot be reached by accumulation
+
+> **Primes are preserved only by constructions that never create surplus factors.**
 
 ---
 
-## Research Philosophy
+## Status
 
-This project intentionally embraces **negative results**.
+This repository is exploratory but internally consistent. Each driver encodes the same invariant from a different angle.
 
-Showing *why* an idea fails—cleanly, empirically, and without hand-waving—is as important as showing success.
+Future directions may include:
 
-If you are interested in:
-
-* experimental mathematics
-* prime structure
-* geometric intuition tested against reality
-
-this repository is meant for you.
+* symbolic proof extraction
+* static analyzers for prime-safe expressions
+* geometric visualizations of factor constraints
 
 ---
 
 ## License
 
-MIT License
+Open source. Use, modify, and extend fre
