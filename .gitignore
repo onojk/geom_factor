@@ -1,1 +1,19 @@
+# ---- Manim output ----
+media/
+*.mp4
+*.mov
+*.mkv
+*.gif
+*.webm
+
+# Manim partials/cache
 __pycache__/
+*.pyc
+.manim_cache/
+manim_cache/
+
+# OS / editor junk
+.DS_Store
+*.swp
+*.swo
+*~
