@@ -1,126 +1,143 @@
 # geom_factor
 
-Structural experiments on primes, geometry, and factor constraints.
+**geom_factor** is an experimental research and visualization project that explores **primality as accumulated division cost**, not as a static property.
 
-This repository explores a single guiding idea:
+Instead of treating primes as labels, this project treats primality as something that **survives a sequence of failed division attempts**. Every division check is explicit, visual, and time-ordered.
 
-> **Primality is not a property that emerges from growth, volume, or accumulation.**
-> It is a structural constraint that must be preserved at every step of a computation.
-
-The code here treats primes as *invariants* and tests what kinds of mathematical or geometric constructions can — and cannot — produce them.
+The core idea:
+> **Primality isn’t detected — it’s earned by surviving division.**
 
 ---
 
-## Core Principle
+## Core Concepts
 
-A number is prime if and only if it has **exactly two positive divisors**: 1 and itself.
+### Prime Buckets
+Numbers are grouped into **bit buckets** (binary length eras).  
+Each bucket forms a distinct *prime density era*, where:
 
-From this follows a strict rule that drives this project:
+- The total search space grows exponentially
+- Prime density thins
+- Division cost increases
+- No finite Boolean shortcut absorbs the cost
 
-> **No computation intended to yield a prime may multiply more than two non-unit factors at any stage, unless the multiplication is immediately canceled.**
-
-Once three or more independent factors greater than 1 exist simultaneously, compositeness is locked in and cannot be undone by later steps.
-
----
-
-## What This Repository Demonstrates
-
-### 1. Prime Volume Impossibility
-
-Geometric volume formulas (e.g. length × width × height) necessarily multiply three independent quantities. If all dimensions exceed 1, the resulting volume is always composite.
-
-This is not a numerical accident — it is a structural consequence of multiplication.
-
-### 2. Immediate Cancellation Is the Only Escape
-
-Expressions such as:
-
-```
-(a * b * c) / c
-```
-
-are allowed **only because** the extra factor is canceled *immediately*. Delayed cancellation or partial cancellation is insufficient.
-
-### 3. Geometry Cannot Detect Primality
-
-Processes based on:
-
-* filling space
-* increasing height
-* accumulating volume
-* iterating time steps
-
-cannot certify primality. They create factors; primes forbid them.
+Each bucket has its own internal structure and behavior.
 
 ---
 
-## Included Drivers
+### Division as Process
+Every number is tested by **explicit mod checks**:
 
-### `prime_volume_driver.py`
+- Each mod check is one unit of work
+- Composite numbers fail early
+- Prime numbers require exhausting all possible divisors up to √n
 
-Demonstrates that no rectangular prism with prime integer sides (>1) can have a prime integer volume.
-
-### `prime_mult_rule_driver.py`
-
-A structural analyzer that parses arithmetic expressions and flags any multiplication that violates the "no 3+ non-unit factors" rule unless immediately canceled.
-
-### `cone_fill_volume_driver.py`
-
-Extends the volume argument to conical and tapered geometries, showing that scaling and rational factors do not rescue primality.
-
-### Other Drivers
-
-Additional files explore lattice geometry, phase structure, triangle constructions, and factor fingerprints under similar constraints.
+This makes primality a **process**, not a lookup.
 
 ---
 
-## What This Is *Not*
+## Prime Division Laser Visualization
 
-* This is not a prime-finding algorithm
-* This is not a numeric sieve
-* This is not probabilistic
+The centerpiece of this repo is a **time-resolved division engine**:
 
-Instead, it is a **structural proof environment**: if a construction violates the invariant, it cannot produce a prime — regardless of numeric size.
+### `prime_division_mode.py`
+
+A pygame visualization where:
+
+- **x-axis** = number `n`
+- **y-axis** = division check index
+- **Each dot** = one `n % d` operation
+- Green dots = failed divisors (`n % d != 0`)
+- Red dots = divisor hits (`n % d == 0`)
+- Vertical columns form “division lasers”
+- Primes are columns that **survive to the top**
+
+Controls:
+- `SPACE` tap → one division step
+- `SPACE` hold → scroll through division steps
+- `A` → auto-run
+- `UP/DOWN` → adjust speed
+- `LEFT/RIGHT` → zoom
+- `R` → reset counter
+- `C` → clear dots and start a new CSV
+- `ESC` → quit
+
+This makes **division effort visible** in real time.
 
 ---
 
-## Usage Example
+## Why This Matters
+
+- Composite detection is easy: one divisor ends the process
+- Proving primality is hard: *all divisors must fail*
+- As numbers grow, division cost grows
+- Prime density thins but never vanishes
+- No finite Boolean circuit can shortcut division indefinitely
+
+This directly explains why:
+- Primality testing has inherent computational cost
+- RSA security depends on division hardness
+- Prime patterns resist geometric or closed-form prediction
+
+---
+
+## Repository Structure
+
+geom_factor/
+├── prime_division_mode.py # Main interactive division visualization
+├── prime_bucket_density.py # Prime density per bit bucket
+├── prime_bucket_density_plus.py # Extended density analysis
+├── prime_bucket_truth_table.py # Truth tables by bucket
+├── dot_gate_driver_*.py # Binary / dot-logic experiments
+├── gen_bucket_table.py # Bucket table generator
+├── normalize_bucket_overlay.py # Overlay normalization
+├── bucket_table.md # Bucket documentation
+├── kicad_buckets/ # KiCad hardware explorations
+├── exports/ # Rendered schematics / visuals
+└── README.md
+
+yaml
+Copy code
+
+---
+
+## Installation
 
 ```bash
-python3 prime_volume_driver.py fill --p 3 --q 5 --max-h 500
-```
+python3 -m venv .venv
+source .venv/bin/activate
+pip install pygame numpy
+Run the visualization:
 
-Output:
+bash
+Copy code
+python3 prime_division_mode.py
+Philosophy
+Irrationality is not infinite digits — it is infinite failure of numerator–denominator closure.
 
-```
-No prime volumes found for any integer height in the scanned range.
-Reason: base area > 1 forces compositeness.
-```
+Primality is one manifestation of this principle.
+It persists because division persists.
 
----
+Status
+This project is exploratory and intentionally experimental.
+Expect rapid iteration, unconventional visualizations, and theory-driven code.
 
-## Conceptual Summary
+License
+Open for research, learning, and exploration.
 
-* Multiplication creates divisors
-* Primes forbid excess divisors
-* Therefore primes cannot be reached by accumulation
-
-> **Primes are preserved only by constructions that never create surplus factors.**
-
----
-
-## Status
-
-This repository is exploratory but internally consistent. Each driver encodes the same invariant from a different angle.
-
-Future directions may include:
-
-* symbolic proof extraction
-* static analyzers for prime-safe expressions
-* geometric visualizations of factor constraints
+markdown
+Copy code
 
 ---
 
-## License
+## Next optional steps (if you want)
+- Split repo into `/visual`, `/analysis`, `/hardware`
+- Add screenshots / GIF demo
+- Add a short “Why primes are hard” explainer section
+- Tag a release (`v0.1-prime-buckets`)
 
-Open source. Use, modify, and extend fre
+If you want, I can also:
+- tighten language for academic tone
+- rewrite for general audience
+- add diagrams / ASCII visuals
+- write a project tagline
+
