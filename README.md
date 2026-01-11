@@ -124,20 +124,3 @@ Expect rapid iteration, unconventional visualizations, and theory-driven code.
 License
 Open for research, learning, and exploration.
 
-markdown
-Copy code
-
----
-
-## Next optional steps (if you want)
-- Split repo into `/visual`, `/analysis`, `/hardware`
-- Add screenshots / GIF demo
-- Add a short “Why primes are hard” explainer section
-- Tag a release (`v0.1-prime-buckets`)
-
-If you want, I can also:
-- tighten language for academic tone
-- rewrite for general audience
-- add diagrams / ASCII visuals
-- write a project tagline
-
