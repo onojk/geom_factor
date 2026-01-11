@@ -1,19 +1,50 @@
-# ---- Manim output ----
-media/
-*.mp4
-*.mov
-*.mkv
-*.gif
-*.webm
-
-# Manim partials/cache
+# Python
 __pycache__/
 *.pyc
-.manim_cache/
-manim_cache/
+*.pyo
+*.pyd
 
-# OS / editor junk
+# Virtual environments
+.venv/
+venv/
+
+# OS / editor
 .DS_Store
 *.swp
 *.swo
-*~
+*.bak
+
+# Build / cache
+build/
+dist/
+*.egg-info/
+
+# Media / runtime output
+media/
+*.mp4
+*.avi
+
+# Data outputs
+*.csv
+
+# Logs
+*.log
+# junk accidental files
+=
+To
+python3
+jnaofdfnadsjbfjds
+
+# skidl/kicad generated artifacts
+*.erc
+*.net
+*.kicad_prl
+*-backups/
+*.zip
+
+# generated data dumps
+dots_*.txt
+
+# optional: ignore rendered PDFs (uncomment if you don't want them in git)
+# exports/*.pdf
+# exports/**/*.pdf

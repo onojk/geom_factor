@@ -1,0 +1,51 @@
+(kicad_sch (version 20230121) (generator "python-script")
+  (paper "A4")
+  (title_block
+    (title "Bucket 3: F = A AND (NOT C)")
+    (company "geom_factor")
+  )
+
+  ;; --- Symbols ---
+  ;; Inverter: 74HC04 unit 1 (pins 1->2)
+  (symbol (lib_id "74xx:74HC04") (at 80 90 0) (unit 1)
+    (in_bom yes) (on_board yes)
+    (property "Reference" "U1" (at 80 97 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "74HC04" (at 80 83 0) (effects (font (size 1.27 1.27))))
+    (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27))) (hide yes))
+  )
+
+  ;; AND: 74LS08 unit 1 (pins 1,2->3)
+  (symbol (lib_id "74xx:74LS08") (at 120 90 0) (unit 1)
+    (in_bom yes) (on_board yes)
+    (property "Reference" "U2" (at 120 97 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "74LS08" (at 120 83 0) (effects (font (size 1.27 1.27))))
+    (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27))) (hide yes))
+  )
+
+  ;; --- Wires / Nets ---
+  ;; We use net labels so we don't have to perfectly hit pin coordinates by hand.
+  ;; KiCad will connect by wire endpoints + labels.
+
+  ;; Input labels
+  (text "A" (at 60 100 0) (effects (font (size 1.27 1.27))))
+  (text "C" (at 60 80 0)  (effects (font (size 1.27 1.27))))
+
+  ;; Net labels
+  (text "C_BAR" (at 100 80 0) (effects (font (size 1.27 1.27))))
+  (text "F"     (at 150 90 0) (effects (font (size 1.27 1.27))))
+
+  ;; Wires (rough layout)
+  ;; C -> inverter input
+  (wire (pts (xy 65 80) (xy 75 80)))
+  (wire (pts (xy 75 80) (xy 75 90)))   ;; up to gate input zone
+
+  ;; inverter output -> C_BAR label -> AND input
+  (wire (pts (xy 85 90) (xy 100 90)))
+  (wire (pts (xy 100 90) (xy 110 90)))
+
+  ;; A -> AND input
+  (wire (pts (xy 65 100) (xy 110 100)))
+
+  ;; AND output -> F
+  (wire (pts (xy 130 90) (xy 145 90)))
+)
