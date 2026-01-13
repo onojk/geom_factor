@@ -1,146 +1,170 @@
 # geom_factor
 
-Visual and computational experiments exploring **prime numbers through structure, space, and scale**.
+**Geometric Experiments in Prime Structure, Smoothness, and Coupling**
 
-This project focuses on how primes behave when integers are grouped by **binary bit-length (power-of-two buckets)**, how density changes across those buckets, and why structural representations organize the search space but do **not** predict primality.
+This repository contains a collection of exploratory visual and computational experiments that study **prime numbers through geometry**, rather than through direct arithmetic tests.
 
-The repo contains:
-- Manim animations
-- Pygame interactive visualizers
-- Analytical scripts and CSV outputs
-- Conceptual experiments around primes, density, and computational limits
+The goal is **not** to discover new primality tests or faster sieves, but to investigate how prime structure behaves under **global geometric constraints**, **smoothness**, and **coupling**.
 
 ---
 
-## Core Idea
+## Core Ideas
 
-Integers naturally partition into **bit buckets**:
+### Primeness as Resistance
+A prime number can be understood as a number that resists divisibility constraints.  
+In these experiments, that resistance is visualized as **persistence under geometric constraint**.
 
-- Bucket 2 bits: 2–3  
-- Bucket 3 bits: 4–7  
-- Bucket 4 bits: 8–15  
-- Bucket *b*: `[2^(b-1), 2^b − 1]`
+### Smoothness
+Smoothness here does **not** mean “numbers with small prime factors.”
 
-Inside each bucket:
-- Binary width is constant
-- Structure is fixed
-- **Prime density thins out as buckets grow**
+Instead, smoothness means:
 
-This repo visualizes that thinning and shows why **geometry and structure organize numbers**, but **arithmetic alone determines primality**.
+> **Behavior that remains continuous and coherent under imposed constraints.**
+
+Prime gaps, persistence under rotation, and survival under multi-point coupling are treated as smoothness signals.
+
+### Coupling
+Coupling is introduced by rigid geometric relationships (e.g., vertices of a triangle fixed at 120° apart).  
+Once coupled, no point can act independently — structure must survive **collectively** or disappear.
 
 ---
 
-## Key Visualizations
+## Major Experiment Families
 
-### 1. Prime Bucket Density + Decay (Manim)
+### 1. Bit Bucket Prime Towers
+Files:
+- `bit_bucket_prime_towers.py`
+- `bit_bucket_prime_towers_slow.py`
+- `bit_bucket_prime_towers_bucket_memory.py`
+- `bit_bucket_prime_towers_4k_export.py`
 
-**File**
-prime_bucket_density_plus_and_decay.py
+Each bit-width interval (`[2^(k-1), 2^k - 1]`) is treated as a **bucket**.
 
-markdown
-Copy code
+Primes are drawn as **vertical towers**:
+- height encodes persistence or structure
+- buckets accumulate visually
+- smoothness emerges across scale
 
-**Scene**
-PrimeBucketDensityPlusAndDecay
+These experiments emphasize **growth, decay, and memory** across increasing bit widths.
 
-markdown
-Copy code
+---
 
-**What it shows**
-- Tables of numbers grouped by bit-length
-- Binary representations within a bucket
-- Prime vs composite classification
-- Prime density per bucket
-- Density decay as bit-width increases
-- A comparison curve (~ 1 / ln(n)) for intuition
-- End card: *Thanks For Watching! – ONOJK123*
+### 2. Bit Bucket Sieves (Visual)
+File:
+- `bit_bucket_sieve_dots.py`
 
-**Run (quick preview)**
-```bash
-python -m manim -pqh prime_bucket_density_plus_and_decay.py PrimeBucketDensityPlusAndDecay
-Run (1080p)
+A purely visual sieve:
+- dots appear as candidates
+- structure emerges without explicit primality labels
+- shows how constraints eliminate composites
 
-bash
-Copy code
-python -m manim -p -r 1920,1080 prime_bucket_density_plus_and_decay.py PrimeBucketDensityPlusAndDecay
-2. Prime Division Laser / Towers (Pygame)
-Interactive visualization of trial division as vertical towers.
+This emphasizes **constraint filtering**, not primality detection.
 
-Green dots: n % d != 0
+---
 
-Red dots: divisor hit (n % d == 0)
+### 3. Prime Division & Carry Visuals
+File:
+- `prime_division_carry_strip.py`
 
-Towers for primes grow taller (no early hit)
+Explores:
+- odd/even structure
+- carry propagation
+- why division reveals compositeness faster than it confirms primeness
 
-Composites terminate early
+This is a **conceptual visualization**, not a numerical algorithm.
 
-This makes the asymmetry of primality testing visible:
+---
 
-Composite → one witness stops everything
+### 4. Prime Density & Decay by Bit Bucket
+File:
+- `prime_bucket_density_plus_and_decay.py`
 
-Prime → must survive all checks up to √n
+Shows:
+- prime density per bit bucket
+- thinning as scale increases
+- comparison with heuristic expectations (e.g. ~1 / ln(n))
 
-Conceptual Results
-Bit Buckets
-Buckets define space, not prediction
+This anchors the geometric work to known number-theoretic behavior.
 
-Offsets inside buckets form clean ramps
+---
 
-Resets at powers of two are structural, not number-theoretic
+### 5. Primes on Circles and Arcs
+File:
+- `primes_on_quarter_arc_8bit.py`
 
-Density Decay
-Prime density decreases smoothly with scale
+Maps primes from a single bit bucket onto:
+- a quarter arc
+- mirrored to a full circle
 
-The decay is global, not local
+This converts linear ordering into **angular structure**.
 
-Buckets thin even though internal structure stays constant
+---
 
-Why Structure Doesn’t Predict Primes
-Removing shared bits (“sans space”) creates a coordinate system
+### 6. Prime Gap Curves with Geometric Coupling
+(extended in recent commits)
 
-That coordinate ramps cleanly
+Primes are mapped to angles, and **prime gaps** are encoded as radial deviations, producing a smooth closed curve.
 
-Primes merely sample that ramp irregularly
+An **inscribed equilateral triangle** rotates continuously:
+- vertices are rigidly coupled
+- events trigger when vertices pass over prime instances
+- single, double, and triple alignments are detected
 
-No geometric shortcut survives without embedding arithmetic
+These experiments study **global coherence** and **rare alignment events** under constraint.
 
-Troubleshooting (Important)
-Overlapping Text in Manim
-If text overlaps after edits or partial renders:
+---
 
-bash
-Copy code
-python -m manim -pqh --flush_cache prime_bucket_density_plus_and_decay.py PrimeBucketDensityPlusAndDecay
-InvalidDataError: partial_movie_file_list.txt
-This is not a code bug.
-It happens when Manim’s partial MP4s or playlist become corrupted.
+## What This Project Is *Not*
 
-Fix (recommended):
+- ❌ Not a primality test
+- ❌ Not a factorization method
+- ❌ Not a cryptographic attack
+- ❌ Not a proof of prime randomness or non-randomness
 
-bash
-Copy code
-rm -rf media/videos/prime_bucket_density_plus_and_decay/*/partial_movie_files/PrimeBucketDensityPlusAndDecay
-python -m manim -pqh --flush_cache prime_bucket_density_plus_and_decay.py PrimeBucketDensityPlusAndDecay
-If it still fails:
+These are **visual and structural probes**, closer to experimental mathematics than algorithm design.
 
-bash
-Copy code
-rm -rf media/videos/prime_bucket_density_plus_and_decay
-python -m manim -pqh --flush_cache prime_bucket_density_plus_and_decay.py PrimeBucketDensityPlusAndDecay
-Philosophy
-Structure can organize numbers.
-Density can thin predictably.
-Geometry can visualize outcomes.
+---
 
-But primality itself remains an arithmetic fact.
+## What This Project *Is*
 
-No continuous process, geometric shortcut, or structural embedding predicts primes without explicitly performing computation.
+- A geometric lens on prime structure
+- A way to explore smoothness emerging from discreteness
+- A sandbox for coupling, symmetry, and constraint
+- A tool for generating new questions
 
-Author
-Jonathan Kendall
-GitHub: onojk123
-Project: geom_factor
+---
 
-License
-Open source.
-Use, modify, visualize, and build on these ideas freely.
+## Future Directions
+
+Potential next steps include:
+- projecting primes as **towers on a sphere (prime globe)**
+- comparing against randomized controls
+- increasing polygon vertex counts to study coupling strength
+- quantifying smoothness metrics formally
+- exporting long-form videos for analysis
+
+---
+
+## Requirements
+
+Most scripts use:
+- Python 3.10+
+- `pygame`
+- (some earlier experiments use `manim`, but the current direction is pygame-based)
+
+---
+
+## Philosophy
+
+> *Primes are discrete, but the constraints they survive are continuous.*
+
+This project explores what survives when arithmetic structure is forced to live inside geometry.
+
+---
+
+## Author
+
+Jonathan Kendall  
+(ONOJK123)
+
+Exploratory research, visualization, and conceptual development.
