@@ -1,25 +1,94 @@
 # prime_bucket_density_plus_and_decay.py
 #
-# Manim Community v0.19.x (v0.19.1 compatible)
+# Manim Community v0.19.1
 # Run:
 #   python -m manim -pqh prime_bucket_density_plus_and_decay.py PrimeBucketDensityPlusAndDecay
 #
-# If you previously got "InvalidDataError ... partial_movie_file_list.txt", nuke old partials:
-#   rm -rf media/videos/prime_bucket_density_plus_and_decay/1080p60/partial_movie_files/PrimeBucketDensityPlusAndDecay
-#
-# If you still see combine issues, try:
-#   python -m manim -pqh --disable_caching prime_bucket_density_plus_and_decay.py PrimeBucketDensityPlusAndDecay
+# Fixes in THIS rewrite:
+# - Fixes the Text() crash: NEVER passes weight=None into Text()
+# - Table has NO border/panel (your request)
+# - Table columns are hard-aligned (no drift / no “not aligned with boundary” issues)
+# - Table auto-picks font size per bucket so it NEVER runs off the bottom
+# - Graph slide: simplified (no “too much for 1 slide”), no overlap with y-label/subtitle
+# - Graph is placed with safe bottom margin so axis never clips
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Tuple
 
+import numpy as np
 from manim import *
 
+# ----------------------------
+# Timing + style
+# ----------------------------
 
-# ==================== MATH ====================
+SLOW = 3.0
+
+FONT_SERIF = "DejaVu Serif"
+FONT_MONO = "DejaVu Sans Mono"
+
+COL = {
+    "bg": "#000000",
+    "text": "#F2F2F2",
+    "sub": "#A8A8A8",
+    "accent": "#F1E05A",
+    "prime": "#7CFF7C",
+    "comp": "#FF6B6B",
+    "purple": "#C8A2FF",
+}
+
+SAFE_SIDE_MARGIN = 0.80
+SAFE_TOP_MARGIN = 0.50
+SAFE_BOTTOM_MARGIN = 0.65
+
+
+def slow(t: float) -> float:
+    return t * SLOW
+
+
+# ----------------------------
+# Text helpers (CRITICAL: never pass weight=None)
+# ----------------------------
+
+def safe_text(
+    s: str,
+    *,
+    font: str = FONT_SERIF,
+    font_size: int = 48,
+    color: str = COL["text"],
+    weight: str | None = None,
+    max_width: float | None = None,
+) -> Text:
+    if not s.strip():
+        s = " "
+    if weight is None:
+        t = Text(s, font=font, font_size=font_size, color=color)
+    else:
+        t = Text(s, font=font, font_size=font_size, color=color, weight=weight)
+
+    if max_width is not None and t.width > max_width:
+        t.scale_to_fit_width(max_width)
+    return t
+
+
+def safe_title(s: str, *, font_size: int = 76) -> Text:
+    # Use weight=BOLD explicitly (never None)
+    return safe_text(
+        s,
+        font=FONT_SERIF,
+        font_size=font_size,
+        color=COL["text"],
+        weight=BOLD,
+        max_width=config.frame_width - SAFE_SIDE_MARGIN,
+    )
+
+
+# ----------------------------
+# Math helpers
+# ----------------------------
 
 def is_prime(n: int) -> bool:
     if n < 2:
@@ -37,484 +106,413 @@ def is_prime(n: int) -> bool:
     return True
 
 
-def first_k_primes(k: int) -> List[int]:
-    out: List[int] = []
-    n = 2
-    while len(out) < k:
-        if is_prime(n):
-            out.append(n)
-        n += 1
-    return out
+def offset_s(n: int) -> int:
+    return n - (1 << (n.bit_length() - 1))
 
 
-def bit_width(n: int) -> int:
-    return max(1, n.bit_length())
-
-
-def bucket_start(n: int) -> int:
-    return 1 << (bit_width(n) - 1)
-
-
-def bucket_start_for_bits(bits: int) -> int:
-    return 1 << (bits - 1)
-
-
-def bucket_end_for_bits(bits: int) -> int:
-    return (1 << bits) - 1
-
-
-def s_offset_in_bucket(n: int) -> int:
-    return n - bucket_start(n)
-
-
-def bin_str(n: int, width: int) -> str:
-    return format(n, "b").zfill(width)
+def sieve_pi(limit: int) -> List[int]:
+    if limit < 1:
+        return [0] * (limit + 1)
+    sieve = bytearray(b"\x01") * (limit + 1)
+    sieve[0:2] = b"\x00\x00"
+    for p in range(2, int(limit**0.5) + 1):
+        if sieve[p]:
+            start = p * p
+            sieve[start : limit + 1 : p] = b"\x00" * (((limit - start) // p) + 1)
+    pi = [0] * (limit + 1)
+    c = 0
+    for i in range(limit + 1):
+        if sieve[i]:
+            c += 1
+        pi[i] = c
+    return pi
 
 
 @dataclass
-class BucketStats:
-    bits: int
-    start: int
-    end: int
-    size: int
-    primes: int
-    density: float
+class BucketInfo:
+    k: int
+    lo: int
+    hi: int
+    width: int
+    primes: List[int]
+
+    @property
+    def prime_count(self) -> int:
+        return len(self.primes)
+
+    @property
+    def density(self) -> float:
+        return (self.prime_count / self.width) if self.width else 0.0
 
 
-def bucket_stats(bits: int) -> BucketStats:
-    start = bucket_start_for_bits(bits)
-    end = bucket_end_for_bits(bits)
-    size = end - start + 1
-    primes = sum(1 for n in range(start, end + 1) if is_prime(n))
-    dens = primes / size
-    return BucketStats(bits=bits, start=start, end=end, size=size, primes=primes, density=dens)
+def bucket_for_k(k: int) -> BucketInfo:
+    lo = 2 ** (k - 1)
+    hi = 2**k - 1
+    primes = [n for n in range(lo, hi + 1) if is_prime(n)]
+    return BucketInfo(k=k, lo=lo, hi=hi, width=(hi - lo + 1), primes=primes)
 
 
-# ==================== STYLE ====================
+# ----------------------------
+# Layout helpers
+# ----------------------------
 
-COL = {
-    "bg": BLACK,
-    "text": WHITE,
-    "sub": GREY_B,
-    "prime": GREEN_C,
-    "comp": RED_C,
-    "hi": YELLOW,
-    "accent": PURPLE_B,
-    "line": GREY_B,
-    "dot": BLUE_B,
-    "panel": GREY_D,
-}
-
-FONT = {"serif": "DejaVu Serif", "mono": "DejaVu Sans Mono"}
-
-
-def make_title(text: str) -> Text:
-    return Text(text, font=FONT["serif"], weight=BOLD, font_size=56, color=COL["text"]).set_opacity(0.88)
+def make_title_bar() -> VGroup:
+    title = safe_title("PRIME NUMBER DISTRIBUTION", font_size=76)
+    subtitle = safe_text(
+        "bit buckets • bucket offsets • density decay",
+        font=FONT_SERIF,
+        font_size=32,
+        color=COL["sub"],
+        max_width=config.frame_width - SAFE_SIDE_MARGIN,
+    )
+    bar = VGroup(title, subtitle).arrange(DOWN, buff=0.16)
+    bar.to_edge(UP, buff=SAFE_TOP_MARGIN)
+    return bar
 
 
-def make_subtitle(text: str) -> Text:
-    return Text(text, font=FONT["serif"], font_size=30, color=COL["sub"]).set_opacity(0.92)
+def content_anchor_below(title_bar: VGroup) -> np.ndarray:
+    return title_bar.get_bottom() + DOWN * 0.35
 
 
-def scale_down_to_fit(mob: Mobject, max_w: float, max_h: float) -> None:
-    if mob.width <= 0 or mob.height <= 0:
+def slide_clear(scene: Scene, *mobs: Mobject, keep: List[Mobject] | None = None, rt: float = 0.6):
+    if keep is None:
+        keep = []
+    if mobs:
+        scene.play(*[FadeOut(m) for m in mobs], run_time=slow(rt))
         return
-    s = min(max_w / mob.width, max_h / mob.height, 1.0)
-    mob.scale(s)
+    to_remove = [m for m in scene.mobjects if m not in keep]
+    if to_remove:
+        scene.play(*[FadeOut(m) for m in to_remove], run_time=slow(rt))
 
 
-def clamp_to_frame(mob: Mobject, margin: float = 0.25) -> None:
-    left_lim = -config.frame_width / 2 + margin
-    right_lim = config.frame_width / 2 - margin
-    bot_lim = -config.frame_height / 2 + margin
-    top_lim = config.frame_height / 2 - margin
-
-    dx = 0.0
-    dy = 0.0
-    if mob.get_right()[0] > right_lim:
-        dx -= (mob.get_right()[0] - right_lim)
-    if mob.get_left()[0] < left_lim:
-        dx += (left_lim - mob.get_left()[0])
-    if mob.get_bottom()[1] < bot_lim:
-        dy += (bot_lim - mob.get_bottom()[1])
-    if mob.get_top()[1] > top_lim:
-        dy -= (mob.get_top()[1] - top_lim)
-
-    if abs(dx) > 1e-6 or abs(dy) > 1e-6:
-        mob.shift(np.array([dx, dy, 0.0]))
+def fit_between_y(group: Mobject, *, y_top: float, y_bottom: float):
+    """Scale down if needed to fit in vertical window, then center inside it."""
+    max_h = max(0.1, y_top - y_bottom)
+    if group.height > max_h:
+        group.scale_to_fit_height(max_h)
+    y_center = (y_top + y_bottom) / 2
+    group.move_to(np.array([group.get_center()[0], y_center, 0.0]))
 
 
-# ==================== UI ====================
+# ----------------------------
+# Table builder (NO BORDER; hard-aligned columns; auto font sizes)
+# ----------------------------
 
-def make_bucket_table(bits: int) -> VGroup:
-    start = bucket_start_for_bits(bits)
-    end = bucket_end_for_bits(bits)
+def build_bucket_table(info: BucketInfo) -> VGroup:
+    """
+    Returns a VGroup: header + rows.
+    Columns are aligned by fixed X positions so nothing drifts.
+    """
+    row_count = info.width
 
-    hdr = VGroup(
-        Text("DEC", font=FONT["mono"], font_size=26, color=COL["sub"]),
-        Text("BINARY", font=FONT["mono"], font_size=26, color=COL["sub"]),
-        Text("RESULT", font=FONT["mono"], font_size=26, color=COL["sub"]),
-    ).arrange(RIGHT, buff=1.2, aligned_edge=DOWN)
-
-    rows: List[VGroup] = []
-    pad = len(str(end))
-    for n in range(start, end + 1):
-        p = is_prime(n)
-        c = COL["prime"] if p else COL["comp"]
-        rows.append(
-            VGroup(
-                Text(f"{n}".rjust(pad), font=FONT["mono"], font_size=22, color=c),
-                Text(bin_str(n, bits), font=FONT["mono"], font_size=22, color=c),
-                Text("PRIME" if p else "COMPOSITE", font=FONT["mono"], font_size=22, color=c, weight=BOLD if p else NORMAL),
-            ).arrange(RIGHT, buff=1.2, aligned_edge=DOWN)
-        )
-
-    body = VGroup(*rows).arrange(DOWN, buff=0.12, aligned_edge=LEFT)
-    pack = VGroup(hdr, body).arrange(DOWN, buff=0.22, aligned_edge=LEFT)
-
-    frame = RoundedRectangle(
-        corner_radius=0.25,
-        width=pack.width + 0.6,
-        height=pack.height + 0.5,
-        stroke_width=2,
-        stroke_color=COL["panel"],
-    ).set_fill(BLACK, opacity=0.45)
-
-    return VGroup(frame, pack).center()
-
-
-def make_readout(stats: List[BucketStats], tracker: ValueTracker) -> Text:
-    n = len(stats)
-    idx = int(round(tracker.get_value()))
-    idx = max(0, min(n - 1, idx))
-    b = stats[idx].bits
-    if idx == 0:
-        val = 0.0
+    # Auto font sizing so the table never falls off-screen.
+    # k=2 -> 2 rows (big), k=4 -> 8 rows (smaller), etc.
+    if row_count <= 2:
+        fs_hdr, fs_row = 44, 44
+    elif row_count <= 8:
+        fs_hdr, fs_row = 40, 40
+    elif row_count <= 16:
+        fs_hdr, fs_row = 34, 34
     else:
-        prev = stats[idx - 1].density
-        cur = stats[idx].density
-        val = 0.0 if prev == 0 else 100.0 * (cur - prev) / prev
+        fs_hdr, fs_row = 30, 30
 
-    sign = "+" if val >= 0 else "−"
-    txt = f"b={b:>2}   Δ%={sign}{abs(val):5.2f}"
-    return Text(txt, font=FONT["mono"], font_size=30, color=WHITE)
+    # Fixed column centers (scene units)
+    # Keep table comfortably away from left edge.
+    x_dec = -2.8
+    x_bin = -0.4
+    x_res = 2.6
+
+    hdr_dec = safe_text("DEC", font=FONT_MONO, font_size=fs_hdr, color=COL["sub"])
+    hdr_bin = safe_text("BINARY", font=FONT_MONO, font_size=fs_hdr, color=COL["sub"])
+    hdr_res = safe_text("RESULT", font=FONT_MONO, font_size=fs_hdr, color=COL["sub"])
+
+    hdr_dec.move_to([x_dec, 0, 0])
+    hdr_bin.move_to([x_bin, 0, 0])
+    hdr_res.move_to([x_res, 0, 0])
+
+    header = VGroup(hdr_dec, hdr_bin, hdr_res)
+
+    # divider line under header
+    line = Line(start=[x_dec - 1.2, -0.45, 0], end=[x_res + 1.6, -0.45, 0], stroke_width=2, color=COL["sub"])
+    line.set_opacity(0.35)
+
+    rows = VGroup()
+    for n in range(info.lo, info.hi + 1):
+        b = format(n, "b")
+        prime = is_prime(n)
+        row_col = COL["prime"] if prime else COL["comp"]
+
+        t_dec = safe_text(str(n), font=FONT_MONO, font_size=fs_row, color=row_col)
+        t_bin = safe_text(b, font=FONT_MONO, font_size=fs_row, color=row_col)
+        t_res = safe_text("PRIME" if prime else "COMPOSITE", font=FONT_MONO, font_size=fs_row, color=row_col)
+
+        t_dec.move_to([x_dec, 0, 0])
+        t_bin.move_to([x_bin, 0, 0])
+        t_res.move_to([x_res, 0, 0])
+
+        rows.add(VGroup(t_dec, t_bin, t_res))
+
+    rows.arrange(DOWN, buff=0.18).next_to(line, DOWN, buff=0.18)
+
+    table = VGroup(header, line, rows)
+    return table
 
 
-# ==================== SCENE ====================
+# ----------------------------
+# Scene
+# ----------------------------
 
 class PrimeBucketDensityPlusAndDecay(Scene):
     def construct(self):
         self.camera.background_color = COL["bg"]
-        SPEED = 1.0
 
-        # ------------------ Intro ------------------
-        title = make_title("PRIME NUMBER DISTRIBUTION").to_edge(UP, buff=0.55)
-        sub = make_subtitle("Bit buckets • bucket offsets • density decay").next_to(title, DOWN, buff=0.20)
+        title_bar = make_title_bar()
+        self.play(FadeIn(title_bar, shift=UP * 0.12), run_time=slow(0.9))
+        anchor = content_anchor_below(title_bar)
 
-        self.play(FadeIn(title, shift=DOWN * 0.12), FadeIn(sub, shift=DOWN * 0.12), run_time=1.1 * SPEED)
-        self.wait(0.35 * SPEED)
-
-        rule = Text(
-            "Bucket = numbers with the same bit-length",
-            font=FONT["serif"],
-            font_size=34,
-            color=COL["hi"],
-        ).to_edge(DOWN, buff=0.65)
-
-        self.play(FadeIn(rule, shift=UP * 0.10), run_time=0.8 * SPEED)
-        self.wait(0.45 * SPEED)
-
-        # ------------------ Part A: a few example bucket tables ------------------
-        example_bits = [2, 4, 8]
-
-        # Build FIRST header/caption as real Text (not empty)
-        first_stats = bucket_stats(example_bits[0])
-
-        bucket_hdr = Text(
-            f"{example_bits[0]}-BIT BUCKET",
-            font=FONT["serif"],
-            font_size=44,
+        # ------------------------------------------------------------
+        # Slide 1: definition
+        # ------------------------------------------------------------
+        s1_a = safe_text(
+            "A bit-bucket groups numbers with the same bit-length.",
+            font_size=42,
             color=COL["text"],
-            weight=BOLD,
-        ).to_corner(UR, buff=0.55)
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        ).move_to(anchor).to_edge(LEFT, buff=0.8)
 
-        bucket_cap = Text(
-            f"{first_stats.start:,} – {first_stats.end:,}   (width={example_bits[0]} bits)",
-            font=FONT["serif"],
-            font_size=28,
-            color=COL["accent"],
-        ).next_to(bucket_hdr, DOWN, buff=0.15).align_to(bucket_hdr, RIGHT)
+        s1_b = safe_text(
+            "All k-bit numbers live in one contiguous block:",
+            font_size=34,
+            color=COL["sub"],
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        ).next_to(s1_a, DOWN, buff=0.28).align_to(s1_a, LEFT)
 
-        self.add(bucket_hdr, bucket_cap)
+        s1_c = MathTex(r"[2^{k-1},\;2^k-1]", color=COL["accent"]).scale(1.35)
+        s1_c.next_to(s1_b, DOWN, buff=0.35).align_to(s1_a, LEFT)
 
-        table_group: Optional[VGroup] = None
+        self.play(Write(s1_a), run_time=slow(0.9))
+        self.play(Write(s1_b), run_time=slow(0.8))
+        self.play(Write(s1_c), run_time=slow(0.9))
+        self.wait(slow(0.6))
 
-        for i, b in enumerate(example_bits):
-            st = bucket_stats(b)
+        # ------------------------------------------------------------
+        # Helper: show a bucket slide cleanly
+        # ------------------------------------------------------------
+        def show_bucket(k: int) -> Tuple[Mobject, Mobject, Mobject, Mobject]:
+            info = bucket_for_k(k)
 
-            new_hdr = Text(
-                f"{b}-BIT BUCKET",
-                font=FONT["serif"],
-                font_size=44,
+            hdr = safe_text(
+                f"{k}-BIT BUCKET",
+                font_size=60,
                 color=COL["text"],
                 weight=BOLD,
-            ).to_corner(UR, buff=0.55)
+                max_width=config.frame_width - SAFE_SIDE_MARGIN,
+            ).move_to(anchor).to_edge(LEFT, buff=0.8)
 
-            new_cap = Text(
-                f"{st.start:,} – {st.end:,}   (width={b} bits)",
-                font=FONT["serif"],
-                font_size=28,
-                color=COL["accent"],
-            ).next_to(new_hdr, DOWN, buff=0.15).align_to(new_hdr, RIGHT)
+            rng = safe_text(
+                f"{info.lo} – {info.hi}   (width = {info.width})",
+                font_size=36,
+                color=COL["purple"],
+                max_width=config.frame_width - SAFE_SIDE_MARGIN,
+            ).next_to(hdr, DOWN, buff=0.18).align_to(hdr, LEFT)
 
-            table = make_bucket_table(b)
-            max_w = config.frame_width - 1.2
-            max_h = config.frame_height - 3.6
-            scale_down_to_fit(table, max_w, max_h)
-            table.move_to(ORIGIN + DOWN * 0.30)
+            table = build_bucket_table(info)
 
-            metrics = VGroup(
-                Text(
-                    f"{st.primes} primes out of {st.size}  →  density = {st.density:.3f}",
-                    font=FONT["serif"],
-                    font_size=34,
-                    color=COL["text"],
-                ),
-                Text(
-                    "Inside a bucket: binary width is constant.",
-                    font=FONT["serif"],
-                    font_size=28,
-                    color=COL["sub"],
-                ),
-            ).arrange(DOWN, buff=0.18, aligned_edge=LEFT).to_edge(LEFT, buff=0.65).shift(DOWN * 0.25)
+            # Place table under range, fit safely to bottom
+            table.next_to(rng, DOWN, buff=0.40).to_edge(LEFT, buff=0.8)
 
-            if i == 0:
-                table_group = VGroup(table, metrics)
-                self.play(
-                    Transform(bucket_hdr, new_hdr),
-                    Transform(bucket_cap, new_cap),
-                    FadeIn(table),
-                    FadeIn(metrics),
-                    run_time=1.0 * SPEED,
-                )
-            else:
-                assert table_group is not None
-                old_table, old_metrics = table_group[0], table_group[1]
-                self.play(
-                    Transform(bucket_hdr, new_hdr),
-                    Transform(bucket_cap, new_cap),
-                    FadeTransform(old_table, table),
-                    FadeTransform(old_metrics, metrics),
-                    run_time=1.0 * SPEED,
-                )
-                table_group = VGroup(table, metrics)
+            y_top = rng.get_bottom()[1] - 0.25
+            y_bottom = -config.frame_height / 2 + SAFE_BOTTOM_MARGIN + 0.15
+            fit_between_y(table, y_top=y_top, y_bottom=y_bottom)
 
-            self.wait(0.5 * SPEED)
+            dens = safe_text(
+                f"{info.prime_count} primes out of {info.width}  →  density = {info.density:.3f}",
+                font=FONT_SERIF,
+                font_size=44 if info.width <= 8 else 40,
+                color=COL["text"],
+                max_width=config.frame_width - SAFE_SIDE_MARGIN,
+            )
+            dens.to_edge(DOWN, buff=SAFE_BOTTOM_MARGIN)
 
-        self.play(FadeOut(table_group), FadeOut(bucket_hdr), FadeOut(bucket_cap), FadeOut(rule), run_time=0.7 * SPEED)
+            self.play(Write(hdr), run_time=slow(0.8))
+            self.play(Write(rng), run_time=slow(0.7))
+            self.play(FadeIn(table), run_time=slow(0.9))
+            self.wait(slow(0.35))
 
-        # ------------------ Part B: bucket offset s(n) ------------------
-        btitle = Text("Bucket Offset (\"digits sans space\")", font=FONT["serif"], font_size=44, color=COL["text"], weight=BOLD)
-        btitle.to_edge(UP, buff=0.55)
+            # density line gets its own moment, but never overlaps table
+            self.play(Write(dens), run_time=slow(0.9))
+            self.wait(slow(0.55))
 
-        eq = MathTex(r"s(n)=n-2^{\lfloor \log_2(n)\rfloor}", color=COL["hi"]).scale(1.15).next_to(btitle, DOWN, buff=0.25)
-        expl = Text(
-            "Distance from n to the start of its power-of-two bucket.",
-            font=FONT["serif"],
+            return hdr, rng, table, dens
+
+        # ------------------------------------------------------------
+        # Slide 2: 2-bit bucket
+        # ------------------------------------------------------------
+        slide_clear(self, s1_a, s1_b, s1_c, keep=[title_bar], rt=0.7)
+        h2, r2, t2, d2 = show_bucket(2)
+
+        # ------------------------------------------------------------
+        # Slide 3: 4-bit bucket
+        # ------------------------------------------------------------
+        slide_clear(self, h2, r2, t2, d2, keep=[title_bar], rt=0.7)
+        h4, r4, t4, d4 = show_bucket(4)
+
+        # ------------------------------------------------------------
+        # Slide 4: bucket offset
+        # ------------------------------------------------------------
+        slide_clear(self, h4, r4, t4, d4, keep=[title_bar], rt=0.7)
+
+        off_hdr = safe_text(
+            "Bucket offset",
+            font_size=60,
+            color=COL["text"],
+            weight=BOLD,
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        ).move_to(anchor).to_edge(LEFT, buff=0.8)
+
+        off_eq = MathTex(r"s(n)=n-2^{\lfloor \log_2 n \rfloor}", color=COL["accent"]).scale(1.25)
+        off_eq.next_to(off_hdr, DOWN, buff=0.35).align_to(off_hdr, LEFT)
+
+        off_explain = safe_text(
+            "Reset each bucket to start at 0, so positions are comparable across buckets.",
+            font_size=34,
+            color=COL["sub"],
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        ).next_to(off_eq, DOWN, buff=0.35).align_to(off_hdr, LEFT)
+
+        a, b = 11, 13
+        off_example = safe_text(
+            f"Example: s({a})={offset_s(a)}   and   s({b})={offset_s(b)}",
+            font=FONT_MONO,
+            font_size=38,
+            color=COL["text"],
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        ).next_to(off_explain, DOWN, buff=0.42).align_to(off_hdr, LEFT)
+
+        self.play(Write(off_hdr), run_time=slow(0.8))
+        self.play(Write(off_eq), run_time=slow(0.9))
+        self.play(Write(off_explain), run_time=slow(0.9))
+        self.play(Write(off_example), run_time=slow(0.9))
+        self.wait(slow(0.8))
+
+        # ------------------------------------------------------------
+        # Slide 5: density decay graph (clean; no overload)
+        # ------------------------------------------------------------
+        slide_clear(self, off_hdr, off_eq, off_explain, off_example, keep=[title_bar], rt=0.7)
+
+        g_hdr = safe_text(
+            "Prime density decays as bit-length grows",
+            font_size=58,
+            color=COL["text"],
+            weight=BOLD,
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        ).move_to(anchor).to_edge(LEFT, buff=0.8)
+
+        g_sub = safe_text(
+            "Density = (primes in bucket) / (bucket width)",
             font_size=28,
             color=COL["sub"],
-        ).next_to(eq, DOWN, buff=0.18)
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        ).next_to(g_hdr, DOWN, buff=0.22).align_to(g_hdr, LEFT)
 
-        self.play(FadeIn(btitle, shift=DOWN * 0.12), FadeIn(eq, shift=DOWN * 0.12), FadeIn(expl, shift=DOWN * 0.12), run_time=1.0 * SPEED)
-        self.wait(0.4 * SPEED)
+        self.play(Write(g_hdr), run_time=slow(0.9))
+        self.play(Write(g_sub), run_time=slow(0.8))
 
-        k = 250
-        ps = first_k_primes(k)
-        ys = [s_offset_in_bucket(p) for p in ps]
+        KMAX = 18
+        max_n = 2**KMAX - 1
+        pi = sieve_pi(max_n)
 
-        boundaries_idx: List[int] = []
-        last_bucket = bucket_start(ps[0])
-        for idx, p in enumerate(ps):
-            bs = bucket_start(p)
-            if bs != last_bucket:
-                boundaries_idx.append(idx)
-                last_bucket = bs
+        xs = list(range(2, KMAX + 1))
+        ys = []
+        for kk in xs:
+            lo = 2 ** (kk - 1)
+            hi = 2**kk - 1
+            primes_in_bucket = pi[hi] - pi[lo - 1]
+            width = hi - lo + 1
+            ys.append(primes_in_bucket / width)
 
-        y_max = max(ys) if ys else 10
+        y_max = max(ys) * 1.12
 
-        axes = Axes(
-            x_range=[1, k, 25],
-            y_range=[0, max(8, int(y_max * 1.05)), max(1, int(max(8, int(y_max * 1.05)) / 5))],
-            x_length=11.5,
-            y_length=4.8,
-            tips=False,
-            axis_config={"stroke_width": 2},
-        ).to_edge(DOWN, buff=1.05)
-
-        xlab = Text("prime index", font=FONT["serif"], font_size=24, color=COL["sub"]).next_to(axes.get_x_axis(), RIGHT, buff=0.18)
-        ylab = Text("s(p)", font=FONT["serif"], font_size=24, color=COL["sub"]).rotate(PI / 2).next_to(axes.get_y_axis(), LEFT, buff=0.28)
-
-        pts = VGroup(*[
-            Dot(axes.c2p(i + 1, ys[i]), radius=0.045, color=COL["prime"])
-            for i in range(k)
-        ])
-
-        ramp = VMobject(color=BLUE_B, stroke_width=3).set_points_as_corners(
-            [axes.c2p(i + 1, ys[i]) for i in range(k)]
-        )
-
-        bound_lines = VGroup()
-        for bi in boundaries_idx:
-            x = bi + 1
-            ln = Line(axes.c2p(x, 0), axes.c2p(x, max(ys) * 1.02), color=COL["hi"], stroke_width=3).set_opacity(0.95)
-            bound_lines.add(ln)
-
-        legend = VGroup(
-            VGroup(Dot(radius=0.055, color=COL["prime"]), Text("primes", font=FONT["serif"], font_size=22, color=COL["text"])).arrange(RIGHT, buff=0.18),
-            VGroup(Line(ORIGIN, RIGHT * 0.6, color=BLUE_B, stroke_width=6), Text("connect s(p)", font=FONT["serif"], font_size=22, color=COL["text"])).arrange(RIGHT, buff=0.18),
-            VGroup(Line(ORIGIN, RIGHT * 0.6, color=COL["hi"], stroke_width=6), Text("bucket boundary", font=FONT["serif"], font_size=22, color=COL["text"])).arrange(RIGHT, buff=0.18),
-        ).arrange(DOWN, aligned_edge=LEFT, buff=0.12)
-
-        legend_bg = RoundedRectangle(corner_radius=0.2, width=legend.width + 0.5, height=legend.height + 0.35, stroke_width=1.5, stroke_color=GREY_D).set_fill(BLACK, opacity=0.55)
-        legend_pack = VGroup(legend_bg, legend).to_corner(UR, buff=0.45).shift(DOWN * 0.9)
-        clamp_to_frame(legend_pack, margin=0.25)
-
-        self.play(Create(axes), FadeIn(xlab), FadeIn(ylab), run_time=0.9 * SPEED)
-        self.play(Create(ramp), FadeIn(pts), FadeIn(bound_lines), FadeIn(legend_pack), run_time=1.1 * SPEED)
-        self.wait(0.5 * SPEED)
-
-        wiggle = Text(
-            "Prime gaps are irregular → primes land unevenly inside each bucket.",
-            font=FONT["serif"],
-            font_size=26,
-            color=COL["text"],
-        ).to_edge(DOWN, buff=0.35)
-
-        self.play(FadeIn(wiggle, shift=UP * 0.10), run_time=0.7 * SPEED)
-        self.wait(0.8 * SPEED)
-
-        self.play(FadeOut(VGroup(btitle, eq, expl, axes, xlab, ylab, pts, ramp, bound_lines, legend_pack, wiggle)), run_time=0.75 * SPEED)
-
-        # ------------------ Part C: density decay vs bits ------------------
-        g_title = Text("Prime Density Thins Out With Scale", font=FONT["serif"], weight=BOLD, font_size=46, color=COL["text"]).to_edge(UP, buff=0.55)
-        g_sub = Text("Density = (#primes in bucket) / (bucket size)", font=FONT["serif"], font_size=28, color=COL["sub"]).next_to(g_title, DOWN, buff=0.18)
-
-        self.play(FadeIn(g_title, shift=DOWN * 0.12), FadeIn(g_sub, shift=DOWN * 0.12), run_time=1.0 * SPEED)
-
-        MIN_BITS, MAX_BITS = 2, 16
-        stats = [bucket_stats(bits) for bits in range(MIN_BITS, MAX_BITS + 1)]
-        dens_vals = [s.density for s in stats]
-        y_min = max(0.0, min(dens_vals) - 0.02)
-        y_max2 = min(1.0, max(dens_vals) + 0.02)
-
-        axes2 = Axes(
-            x_range=[MIN_BITS, MAX_BITS, 2],
-            y_range=[y_min, y_max2, (y_max2 - y_min) / 5],
-            x_length=11.5,
+        ax = Axes(
+            x_range=[2, KMAX, 2],
+            y_range=[0, y_max, 0.2],
+            x_length=11.2,
             y_length=5.2,
             tips=False,
-            axis_config={"include_numbers": True, "stroke_width": 2},
-        ).to_edge(DOWN, buff=1.05)
-
-        axes2.get_x_axis().set_color(GREY_B)
-        axes2.get_y_axis().set_color(GREY_B)
-
-        x_label2 = Text("bits", font=FONT["serif"], font_size=24, color=COL["sub"]).next_to(axes2.get_x_axis(), RIGHT, buff=0.20)
-        y_label2 = Text("prime density", font=FONT["serif"], font_size=24, color=COL["sub"]).rotate(PI / 2).next_to(axes2.get_y_axis(), LEFT, buff=0.30)
-
-        pts2 = VGroup(*[
-            Dot(axes2.c2p(s.bits, s.density), radius=0.06, color=COL["dot"])
-            for s in stats
-        ])
-
-        line2 = VMobject(color=COL["line"], stroke_width=3).set_points_as_corners(
-            [axes2.c2p(s.bits, s.density) for s in stats]
+            axis_config={"include_numbers": True, "font_size": 26, "color": COL["sub"]},
         )
 
-        theory = VMobject(color=COL["accent"], stroke_width=3)
-        theory_pts = []
-        for s in stats:
-            mid = 0.5 * (s.start + s.end)
-            theory_pts.append(axes2.c2p(s.bits, 1.0 / math.log(mid)))
-        theory.set_points_smoothly(theory_pts)
+        ylab = safe_text("prime density", font_size=24, color=COL["sub"])
+        xlab = safe_text("bit-length k", font_size=24, color=COL["sub"])
 
-        leg = VGroup(
-            VGroup(Dot(radius=0.06, color=COL["dot"]), Text("measured density", font=FONT["serif"], font_size=22, color=COL["text"])).arrange(RIGHT, buff=0.18),
-            VGroup(Line(ORIGIN, RIGHT * 0.6, color=COL["accent"], stroke_width=6), Text("~ 1/ln(n) guide", font=FONT["serif"], font_size=22, color=COL["text"])).arrange(RIGHT, buff=0.18),
-        ).arrange(DOWN, aligned_edge=LEFT, buff=0.10)
+        # Group the graph objects so we can fit safely between subtitle and bottom
+        dots = VGroup(*[Dot(ax.c2p(x, y), radius=0.055, color=COL["accent"]) for x, y in zip(xs, ys)])
 
-        leg_bg = RoundedRectangle(corner_radius=0.2, width=leg.width + 0.5, height=leg.height + 0.35, stroke_width=1.5, stroke_color=GREY_D).set_fill(BLACK, opacity=0.55)
-        leg_pack = VGroup(leg_bg, leg).to_corner(UR, buff=0.45).shift(DOWN * 0.85)
-        clamp_to_frame(leg_pack, margin=0.25)
+        curve = VMobject(stroke_width=4, color=COL["accent"])
+        curve.set_points_smoothly([ax.c2p(x, y) for x, y in zip(xs, ys)])
 
-        self.play(Create(axes2), FadeIn(x_label2), FadeIn(y_label2), run_time=0.9 * SPEED)
-        self.play(Create(line2), FadeIn(pts2), Create(theory), FadeIn(leg_pack), run_time=1.1 * SPEED)
-        self.wait(0.5 * SPEED)
+        ref = VMobject(stroke_width=3, color=COL["purple"])
+        ref_pts = [ax.c2p(kk, 1.0 / (kk * math.log(2.0))) for kk in xs]
+        ref.set_points_smoothly(ref_pts)
 
-        cursor = Dot(radius=0.08, color=COL["hi"]).set_z_index(10)
-        tracker = ValueTracker(0.0)
+        graph = VGroup(ax, dots, curve, ref)
 
-        def interp_point(t: float) -> np.ndarray:
-            n = len(stats)
-            if n == 1:
-                return axes2.c2p(stats[0].bits, stats[0].density)
-            t = max(0.0, min(float(n - 1), t))
-            i = int(math.floor(t))
-            if i >= n - 1:
-                i = n - 2
-                frac = 1.0
-            else:
-                frac = t - i
-            p0 = axes2.c2p(stats[i].bits, stats[i].density)
-            p1 = axes2.c2p(stats[i + 1].bits, stats[i + 1].density)
-            return p0 * (1 - frac) + p1 * frac
+        # Place graph under subtitle with a safe bottom margin (prevents cut-off)
+        graph.next_to(g_sub, DOWN, buff=0.55).to_edge(LEFT, buff=0.8)
 
-        cursor.add_updater(lambda m: m.move_to(interp_point(tracker.get_value())))
+        # Fit to safe window
+        y_top = g_sub.get_bottom()[1] - 0.25
+        y_bottom = -config.frame_height / 2 + SAFE_BOTTOM_MARGIN
+        fit_between_y(graph, y_top=y_top, y_bottom=y_bottom)
 
-        panel = RoundedRectangle(corner_radius=0.25, width=5.4, height=2.1, stroke_width=2, stroke_color=GREY_B).to_corner(DR, buff=0.55)
-        panel.set_fill(BLACK, opacity=0.75)
+        # Labels attached AFTER fit (so they won't overlap)
+        ylab.next_to(ax, LEFT, buff=0.25).rotate(PI / 2)
+        xlab.next_to(ax, DOWN, buff=0.20)
 
-        panel_title = Text("Per-bucket thinning", font=FONT["serif"], font_size=28, color=COL["hi"])
-        panel_title.move_to(panel.get_top() + DOWN * 0.36)
+        self.play(Create(ax), run_time=slow(1.1))
+        self.play(FadeIn(xlab), FadeIn(ylab), run_time=slow(0.6))
+        self.play(LaggedStart(*[FadeIn(d) for d in dots], lag_ratio=0.07), run_time=slow(0.9))
+        self.play(Create(curve), run_time=slow(0.9))
+        self.play(Create(ref), run_time=slow(0.9))
 
-        readout = always_redraw(lambda: make_readout(stats, tracker).move_to(panel.get_center() + DOWN * 0.05))
-        hint = Text("compare bucket b to b−1", font=FONT["serif"], font_size=22, color=COL["sub"]).move_to(panel.get_bottom() + UP * 0.33)
+        # Tiny legend in corner (no giant label over the plot)
+        legend = safe_text("purple: ~ 1/(k ln 2)", font_size=22, color=COL["purple"])
+        legend.to_corner(DR, buff=0.60)
 
-        panel_pack = VGroup(panel, panel_title, readout, hint).set_z_index(20)
-        clamp_to_frame(panel_pack, margin=0.28)
+        self.play(FadeIn(legend), run_time=slow(0.6))
+        self.wait(slow(1.0))
 
-        self.add(cursor)
-        self.play(FadeIn(panel_pack), FadeIn(cursor), run_time=0.7 * SPEED)
-        self.play(tracker.animate.set_value(len(stats) - 1), run_time=2.2 * SPEED, rate_func=linear)
-        self.wait(0.6 * SPEED)
+        # ------------------------------------------------------------
+        # Slide 6: End card
+        # ------------------------------------------------------------
+        slide_clear(
+            self,
+            g_hdr, g_sub,
+            ax, xlab, ylab, dots, curve, ref, legend,
+            keep=[title_bar],
+            rt=0.8,
+        )
 
-        close = Text(
-            "Bigger buckets → fewer primes per number.\nThat’s the density decay.",
-            font=FONT["serif"],
-            font_size=28,
+        thanks = safe_text(
+            "Thanks For Watching!",
+            font_size=90,
             color=COL["text"],
-        ).to_edge(DOWN, buff=0.35)
+            weight=BOLD,
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        )
+        sig = safe_text(
+            "- ONOJK123",
+            font_size=64,
+            color=COL["accent"],
+            max_width=config.frame_width - SAFE_SIDE_MARGIN,
+        )
+        end_grp = VGroup(thanks, sig).arrange(DOWN, buff=0.30).move_to(ORIGIN)
+        if end_grp.width > (config.frame_width - SAFE_SIDE_MARGIN):
+            end_grp.scale_to_fit_width(config.frame_width - SAFE_SIDE_MARGIN)
 
-        self.play(FadeIn(close, shift=UP * 0.10), run_time=0.7 * SPEED)
-        self.wait(0.9 * SPEED)
+        self.play(Write(thanks), run_time=slow(0.9))
+        self.play(Write(sig), run_time=slow(0.8))
+        self.wait(slow(1.2))
 
-        self.play(FadeOut(VGroup(g_title, g_sub, axes2, x_label2, y_label2, pts2, line2, theory, leg_pack, panel_pack, cursor, close)), run_time=0.8 * SPEED)
-
-        # ------------------ End card ------------------
-        end_card = VGroup(
-            Text("Thanks For Watching!", font=FONT["serif"], weight=BOLD, font_size=78, color=COL["text"]),
-            Text("- ONOJK123", font=FONT["serif"], font_size=48, color=COL["hi"]),
-        ).arrange(DOWN, buff=0.35).center()
-
-        frame = RoundedRectangle(
-            corner_radius=0.35,
-            width=min(config.frame_width - 1.2, end_card.width + 1.2),
-            height=min(config.frame_height - 1.2, end_card.height + 1.0),
-            stroke_width=2,
-            stroke_color=GREY_D,
-        ).set_fill(BLACK, opacity=0.35)
-
-        end_pack = VGroup(frame, end_card).center()
-        self.play(FadeIn(end_pack, shift=UP * 0.10), run_time=0.9 * SPEED)
-        self.wait(1.4 * SPEED)
-        self.play(FadeOut(end_pack), run_time=0.8 * SPEED)
+        self.play(FadeOut(title_bar), run_time=slow(0.6))
+        self.wait(slow(0.3))
