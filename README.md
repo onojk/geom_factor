@@ -1,170 +1,242 @@
-# geom_factor
+geom_factor
 
-**Geometric Experiments in Prime Structure, Smoothness, and Coupling**
+Geometric, binary, and visual explorations of prime numbers
 
-This repository contains a collection of exploratory visual and computational experiments that study **prime numbers through geometry**, rather than through direct arithmetic tests.
+This repository explores prime numbers through structure, geometry, and computation, rather than treating them as isolated arithmetic objects. The core idea is that many properties of primes become clearer when viewed through binary representation, bit-length grouping, offset normalization, and visual density analysis.
 
-The goal is **not** to discover new primality tests or faster sieves, but to investigate how prime structure behaves under **global geometric constraints**, **smoothness**, and **coupling**.
+The project combines:
 
----
+number theory
 
-## Core Ideas
+binary arithmetic
 
-### Primeness as Resistance
-A prime number can be understood as a number that resists divisibility constraints.  
-In these experiments, that resistance is visualized as **persistence under geometric constraint**.
+geometric interpretation
 
-### Smoothness
-Smoothness here does **not** mean “numbers with small prime factors.”
+algorithmic verification
 
-Instead, smoothness means:
+Manim-based visualization
 
-> **Behavior that remains continuous and coherent under imposed constraints.**
+Core Concepts
+Bit Buckets
 
-Prime gaps, persistence under rotation, and survival under multi-point coupling are treated as smoothness signals.
+Integers are grouped by bit-length into buckets of the form:
 
-### Coupling
-Coupling is introduced by rigid geometric relationships (e.g., vertices of a triangle fixed at 120° apart).  
-Once coupled, no point can act independently — structure must survive **collectively** or disappear.
+[
+2
+𝑘
+−
+1
+,
+  
+2
+𝑘
+−
+1
+]
+[2
+k−1
+,2
+k
+−1]
 
----
+Each bucket:
 
-## Major Experiment Families
+has width 
+2
+𝑘
+−
+1
+2
+k−1
 
-### 1. Bit Bucket Prime Towers
-Files:
-- `bit_bucket_prime_towers.py`
-- `bit_bucket_prime_towers_slow.py`
-- `bit_bucket_prime_towers_bucket_memory.py`
-- `bit_bucket_prime_towers_4k_export.py`
+doubles in size with each increment of 
+𝑘
+k
 
-Each bit-width interval (`[2^(k-1), 2^k - 1]`) is treated as a **bucket**.
+provides a natural scale for comparing primes fairly
 
-Primes are drawn as **vertical towers**:
-- height encodes persistence or structure
-- buckets accumulate visually
-- smoothness emerges across scale
+Offsets
 
-These experiments emphasize **growth, decay, and memory** across increasing bit widths.
+For a number 
+𝑛
+n in the 
+𝑘
+k-bit bucket, its offset is:
 
----
+offset
+(
+𝑛
+)
+=
+𝑛
+−
+2
+𝑘
+−
+1
+offset(n)=n−2
+k−1
 
-### 2. Bit Bucket Sieves (Visual)
-File:
-- `bit_bucket_sieve_dots.py`
+Offsets normalize position within a bucket, allowing patterns to be compared across buckets without scale distortion.
 
-A purely visual sieve:
-- dots appear as candidates
-- structure emerges without explicit primality labels
-- shows how constraints eliminate composites
+Offsets separate:
 
-This emphasizes **constraint filtering**, not primality detection.
+scale (bucket index)
 
----
+position (offset inside the bucket)
 
-### 3. Prime Division & Carry Visuals
-File:
-- `prime_division_carry_strip.py`
+Prime Density
 
-Explores:
-- odd/even structure
-- carry propagation
-- why division reveals compositeness faster than it confirms primeness
+Prime density is defined per bucket as:
 
-This is a **conceptual visualization**, not a numerical algorithm.
+density
+(
+𝑘
+)
+=
+#
+primes in bucket
+2
+𝑘
+−
+1
+density(k)=
+2
+k−1
+#primes in bucket
+	​
 
----
 
-### 4. Prime Density & Decay by Bit Bucket
-File:
-- `prime_bucket_density_plus_and_decay.py`
+This makes visible how primes thin out as numbers grow larger.
+Empirically, density decays roughly like:
 
-Shows:
-- prime density per bit bucket
-- thinning as scale increases
-- comparison with heuristic expectations (e.g. ~1 / ln(n))
+1
+𝑘
+ln
+⁡
+2
+kln2
+1
+	​
 
-This anchors the geometric work to known number-theoretic behavior.
 
----
+which aligns with the Prime Number Theorem expressed in bit-length terms.
 
-### 5. Primes on Circles and Arcs
-File:
-- `primes_on_quarter_arc_8bit.py`
+Verification Cost & Carry Structure
 
-Maps primes from a single bit bucket onto:
-- a quarter arc
-- mirrored to a full circle
+Many scripts in this repo explore the idea that:
 
-This converts linear ordering into **angular structure**.
+composite numbers are often easy to disprove
 
----
+primes require exhaustive verification
 
-### 6. Prime Gap Curves with Geometric Coupling
-(extended in recent commits)
+binary carry propagation plays a structural role in divisibility tests
 
-Primes are mapped to angles, and **prime gaps** are encoded as radial deviations, producing a smooth closed curve.
+primes can be interpreted as numbers that resist internal factor alignment
 
-An **inscribed equilateral triangle** rotates continuously:
-- vertices are rigidly coupled
-- events trigger when vertices pass over prime instances
-- single, double, and triple alignments are detected
+This reframes primality as a verification process, not just a property.
 
-These experiments study **global coherence** and **rare alignment events** under constraint.
+Major Components
+🎥 Manim Visualizations
 
----
+High-quality mathematical animations built with Manim Community Edition, including:
 
-## What This Project Is *Not*
+bucket tables (2-bit, 3-bit, 4-bit, …)
 
-- ❌ Not a primality test
-- ❌ Not a factorization method
-- ❌ Not a cryptographic attack
-- ❌ Not a proof of prime randomness or non-randomness
+offset-aligned prime layouts
 
-These are **visual and structural probes**, closer to experimental mathematics than algorithm design.
+prime density decay plots
 
----
+asymptotic comparisons
 
-## What This Project *Is*
+explanatory slides designed for narration
 
-- A geometric lens on prime structure
-- A way to explore smoothness emerging from discreteness
-- A sandbox for coupling, symmetry, and constraint
-- A tool for generating new questions
+Primary video script:
 
----
+prime_bucket_density_plus_and_decay.py
 
-## Future Directions
+📊 Density & Decay Analysis
 
-Potential next steps include:
-- projecting primes as **towers on a sphere (prime globe)**
-- comparing against randomized controls
-- increasing polygon vertex counts to study coupling strength
-- quantifying smoothness metrics formally
-- exporting long-form videos for analysis
+Scripts that compute and visualize how prime density changes with scale, including:
 
----
+density vs bucket index
 
-## Requirements
+empirical vs asymptotic curves
 
-Most scripts use:
-- Python 3.10+
-- `pygame`
-- (some earlier experiments use `manim`, but the current direction is pygame-based)
+offset-based normalization
 
----
+decay trend validation
 
-## Philosophy
+🔢 Binary & Carry Experiments
 
-> *Primes are discrete, but the constraints they survive are continuous.*
+Explorations of primes in binary space:
 
-This project explores what survives when arithmetic structure is forced to live inside geometry.
+carry-strip visualizations
 
----
+bit-bucket truth tables
 
-## Author
+verification step counting
 
-Jonathan Kendall  
-(ONOJK123)
+binary pattern alignment
 
-Exploratory research, visualization, and conceptual development.
+These scripts investigate why primes are computationally harder to confirm than composites.
+
+📐 Geometric Interpretations
+
+Several experiments reinterpret primes geometrically:
+
+lattice-based layouts
+
+arc and cone projections
+
+spatial density thinning
+
+structured but non-repeating patterns
+
+Repository Structure (high-level)
+geom_factor/
+├── prime_bucket_density_plus_and_decay.py   # Main Manim explainer video
+├── prime_bucket_density_*.py                # Density / decay experiments
+├── prime_division_*.py                      # Verification & division logic
+├── bit_bucket_*.py                          # Binary bucket & offset tools
+├── arc_*.py                                 # Geometric projections
+├── build_*.sh                               # Build / render helpers
+└── README.md
+
+
+(The repo is intentionally exploratory; not all scripts are “final outputs.”)
+
+Requirements
+
+Python 3.10+
+
+Manim Community Edition (tested on 0.19.x)
+
+NumPy
+
+FFmpeg (for video output)
+
+Philosophy
+
+This project treats primes not as mystical objects, but as the result of:
+
+binary structure
+
+verification limits
+
+exponential scaling
+
+and information density constraints
+
+Many visual patterns that look mysterious in base-10 become predictable when examined through binary buckets and offsets.
+
+Status
+
+This is an active exploratory research repo.
+
+Scripts may evolve, be refactored, or be superseded as visual and conceptual clarity improves. The goal is insight, not minimal code.
+
+Author
+
+Jonathan Kendall
+Explorations in mathematics, structure, and visualization.
